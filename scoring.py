@@ -88,12 +88,21 @@ def score_to_label(score: float) -> tuple[str, str]:
     think if they got it on their own work. That question is the whole
     milestone.
     """
-    # TODO: replace this — thresholds are in config.py
     if score >= config.AI_THRESHOLD:
-        return "ai", "PLACEHOLDER — write the high-confidence AI label."
-    if score <= config.HUMAN_THRESHOLD:
-        return "human", "PLACEHOLDER — write the high-confidence human label."
-    return "unsure", "PLACEHOLDER — write the unsure label."
+        return "ai", (
+            "This text shows strong signs of AI generation, but this automated "
+            "assessment can be wrong. If you wrote it, you can request a review "
+            "using your content ID."
+        )
+    if score < config.HUMAN_THRESHOLD:
+        return "human", (
+            "This text shows more signs of human writing, but an automated "
+            "check cannot verify who wrote it."
+        )
+    return "unsure", (
+        "We cannot tell who wrote this text from these checks. No AI claim is "
+        "being made; the writer can share context or request a review."
+    )
 
 
 def label_ranges() -> list[tuple[str, str]]:
@@ -102,7 +111,7 @@ def label_ranges() -> list[tuple[str, str]]:
     label text — given to you so the numbers can't drift apart from config.py.
     """
     return [
-        ("high-confidence human", f"0.00 – {config.HUMAN_THRESHOLD:.2f}"),
-        ("unsure", f"{config.HUMAN_THRESHOLD:.2f} – {config.AI_THRESHOLD:.2f}"),
-        ("high-confidence AI", f"{config.AI_THRESHOLD:.2f} – 1.00"),
+        ("high-confidence human", f"0.00 ≤ score < {config.HUMAN_THRESHOLD:.2f}"),
+        ("unsure", f"{config.HUMAN_THRESHOLD:.2f} ≤ score < {config.AI_THRESHOLD:.2f}"),
+        ("high-confidence AI", f"{config.AI_THRESHOLD:.2f} ≤ score ≤ 1.00"),
     ]

@@ -179,8 +179,7 @@ def submit():
     content_id = str(uuid.uuid4())
     style_score = stylometry.style_signal(text)
     confidence = scoring.combine_signals(model_score, style_score)
-    guess = "unsure"
-    label = "This text is being assessed; the reader label is not ready yet."
+    guess, label = scoring.score_to_label(confidence)
     audit.log_decision(
         content_id=content_id,
         creator_id=creator_id.strip(),
@@ -204,32 +203,32 @@ def submit():
 
 @app.post("/appeal")
 def appeal():
-    """
-    A writer says you got it wrong. ← TODO — Milestone 5
+    """Append a writer's challenge while preserving the original decision."""
+    payload = request.get_json(silent=True)
+    if not isinstance(payload, dict):
+        return jsonify({"error": "invalid_json", "message": "Send a JSON object."}), 400
+    content_id = payload.get("content_id")
+    reasoning = payload.get("reasoning")
+    if not isinstance(content_id, str) or not content_id.strip():
+        return jsonify({"error": "invalid_content_id", "message": "content_id must be a nonempty string."}), 400
+    if not isinstance(reasoning, str) or not reasoning.strip():
+        return jsonify({"error": "invalid_reasoning", "message": "reasoning must be a nonempty string."}), 400
+    if len(reasoning) > config.MAX_REASONING_CHARS:
+        return jsonify({"error": "reasoning_too_long", "message": "reasoning must be at most 2,000 characters."}), 400
 
-    Expects JSON:
-        {"content_id": "...", "reasoning": "..."}
+    entries = audit.entries_for(content_id.strip())
+    decision = next((entry for entry in entries if entry.get("status") == "decided"), None)
+    if decision is None:
+        return jsonify({"error": "not_found", "message": "No submission has that content_id."}), 404
+    if any(entry.get("event") == "appeal" for entry in entries):
+        return jsonify({"error": "already_appealed", "message": "This submission is already under review."}), 409
 
-    Should:
-      1. Check the content_id actually exists — `audit.entries_for(id)` tells
-         you. A typo here fails silently and looks like a broken endpoint,
-         which is the single most common way this milestone eats an hour.
-      2. Record the appeal with `audit.log_appeal(...)`, which moves the item
-         to `under_review`.
-      3. Confirm to the writer. No automatic re-checking needed.
-
-    This is the smallest endpoint in the project and the one that matters most
-    to the person on the other end. It's the only thing standing between a
-    wrong accusation and nothing at all.
-    """
-    payload = request.get_json(silent=True) or {}
-
-    # TODO: delete this and build the route.
+    audit.log_appeal(content_id.strip(), decision["creator_id"], reasoning.strip())
     return jsonify({
-        "error": "not_implemented",
-        "message": "POST /appeal isn't built yet — see the TODO in app.py.",
-        "you_sent": payload,
-    }), 501
+        "content_id": content_id.strip(),
+        "status": "under_review",
+        "message": "Your appeal was recorded for human review.",
+    })
 
 
 # ── Already works ─────────────────────────────────────────────────────────────

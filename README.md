@@ -35,7 +35,15 @@
 <!-- ═══════════════════════ UNIT 7 — THE BUILD ═══════════════════════ -->
 
 ## What This Does
+1. `POST /submit` accepts JSON with `text` and `creator_id`, and rejects malformed or oversized text.
+2. The service assigns a `content_id` that can later identify the decision in an appeal.
+3. `detector.py::model_signal` scores how predictable the text is to a local GPT-2 model.
+4. `stylometry.py::style_signal` scores sentence length, vocabulary, and punctuation patterns.
+5. `scoring.py::combine_signals` makes a combined 0–1 AI-like score and treats strong disagreement as uncertainty.
+6. `scoring.py::score_to_label` chooses a machine-readable guess and a sentence for the reader.
+7. `audit.py::log_decision` appends the decision and both signal scores to `logs/audit.jsonl`; `/submit` returns the ID, scores, guess, and label.
 
+`confidence` in the API is the combined AI-like score, not a verified probability of authorship. A real writer can be wrongly labeled. They can submit the `content_id` and an explanation to `POST /appeal`; a new `under_review` event is appended while the original decision stays intact for human review. The input and output fields and error responses are specified in [design.md](design.md).
 <!-- The path a submission takes, from arriving to the label a reader sees.
      Six or seven steps — this is the trace you wrote in Milestone 1. -->
 
@@ -112,11 +120,12 @@ The fixed passages are in `calibration_samples.py`. This small set demonstrates 
 
 | Label | Score range | The exact text a reader sees |
 |---|---|---|
-| high-confidence human |  |  |
-| unsure |  |  |
-| high-confidence AI |  |  |
+| high-confidence human | `0.00 ≤ score < 0.32` | This text shows more signs of human writing, but an automated check cannot verify who wrote it. |
+| unsure | `0.32 ≤ score < 0.70` | We cannot tell who wrote this text from these checks. No AI claim is being made; the writer can share context or request a review. |
+| high-confidence AI | `0.70 ≤ score ≤ 1.00` | This text shows strong signs of AI generation, but this automated assessment can be wrong. If you wrote it, you can request a review using your content ID. |
 
 **Why I worded the "unsure" one this way:**
+It describes a limit of the checks rather than an accusation about the writer, and it tells the reader a review is available. All three labels were reached through real `/submit` requests: the course-prose sample scored `0.2282`, the lightly edited AI draft `0.4166`, and the clear AI draft `0.7014`.
 <!-- It's the hardest of the three. It has to admit uncertainty without
      sounding like an accusation, because the person reading it may well have
      written every word themselves. -->
@@ -140,9 +149,9 @@ The fixed passages are in `calibration_samples.py`. This small set demonstrates 
 ```bash
 $ curl -X POST http://127.0.0.1:5000/submit \
   -H "Content-Type: application/json" \
-  -d '{"text": "...", "creator_id": "..."}'
+  -d '{"text":"At noon the rain stopped. I waited, then walked home through the garden. Nothing else happened that afternoon.","creator_id":"ta-sample"}'
 ```
-
+{"confidence":0.5401,"content_id":"21b02b0f-70d0-4b62-b9ec-41c0f1d49231","creator_id":"ta-sample","guess":"unsure","label":"We cannot tell who wrote this text from these checks. No AI claim is being made; the writer can share context or request a review.","model_score":0.5584,"status":"decided","style_score":0.4851}
 ```json
 
 ```
@@ -152,9 +161,9 @@ $ curl -X POST http://127.0.0.1:5000/submit \
 ```bash
 $ curl -X POST http://127.0.0.1:5000/appeal \
   -H "Content-Type: application/json" \
-  -d '{"content_id": "...", "reasoning": "..."}'
+  -d '{"content_id":"21b02b0f-70d0-4b62-b9ec-41c0f1d49231","reasoning":"Please review this demonstration entry and its recorded scores."}'
 ```
-
+{"content_id":"21b02b0f-70d0-4b62-b9ec-41c0f1d49231","message":"Your appeal was recorded for human review.","status":"under_review"}
 ```json
 
 ```
@@ -162,9 +171,9 @@ $ curl -X POST http://127.0.0.1:5000/appeal \
 **What the log shows afterwards**
 
 ```bash
-$ curl "http://127.0.0.1:5000/log?limit=3"
+$ curl "http://127.0.0.1:5000/log?limit=2"
 ```
-
+{"count":2,"entries":[{"combined_score":0.5401,"content_id":"21b02b0f-70d0-4b62-b9ec-41c0f1d49231","creator_id":"ta-sample","guess":"unsure","label":"We cannot tell who wrote this text from these checks. No AI claim is being made; the writer can share context or request a review.","model_score":0.5584,"status":"decided","style_score":0.4851,"timestamp":"2026-10-26T15:28:37+00:00"},{"content_id":"21b02b0f-70d0-4b62-b9ec-41c0f1d49231","creator_id":"ta-sample","event":"appeal","reasoning":"Please review this demonstration entry and its recorded scores.","status":"under_review","timestamp":"2026-10-26T15:28:41+00:00"}]}
 ```json
 
 ```
@@ -175,15 +184,15 @@ $ curl "http://127.0.0.1:5000/log?limit=3"
 
 **Moment 1**
 
-- *What I asked for:*
-- *What came back:*
-- *What I changed:*
+- *What I asked for:* Help choosing testable acceptance targets before implementation.
+- *What came back:* The assistant offered false-positive limits of 0, 1, or 2 in 10 and score gaps of 0.30, 0.20, or 0.10, then suggested three other areas.
+- *What I changed:* I selected 0 in 10 and 0.30. The starter's blank `criteria.md` now records those choices and three clearly marked TA-example proposals before any results were collected.
 
 **Moment 2**
 
-- *What I asked for:*
-- *What came back:*
-- *What I changed:*
+- *What I asked for:* Help implementing the route, signals, labels, and appeal path in milestone order, with actual curl checks and no Codex coauthor credit.
+- *What came back:* The assistant wrote the service code and showed four fixed calibration scores, three label responses, and an append-only appeal log.
+- *What I changed:* The starter stubs were replaced with a real two-signal route and appeal handler; the README was updated to match measured scores and an honestly worded demonstration appeal. Git commits use my configured identity without a Codex coauthor trailer.
 
 <!-- ═══════════════════════ UNIT 8 — THE TEST ═══════════════════════ -->
 
