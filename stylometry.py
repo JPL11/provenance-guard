@@ -64,8 +64,11 @@ def sentence_length_spread(text: str) -> float:
     `stdev` raises on fewer than two values. Decide what that should return
     before the attack set decides for you.
     """
-    # TODO: replace this
-    return 0.0
+    lengths = [len(words(sentence)) for sentence in sentences(text)]
+    lengths = [length for length in lengths if length]
+    if len(lengths) < 2:
+        return 0.0
+    return statistics.stdev(lengths) / statistics.mean(lengths)
 
 
 def type_token_ratio(text: str) -> float:
@@ -80,8 +83,8 @@ def type_token_ratio(text: str) -> float:
     directly comparable on it, and if your test inputs vary a lot in length,
     that alone can look like a signal.
     """
-    # TODO: replace this
-    return 0.0
+    tokens = words(text)
+    return len(set(tokens)) / len(tokens) if tokens else 0.0
 
 
 def punctuation_density(text: str) -> float:
@@ -94,8 +97,9 @@ def punctuation_density(text: str) -> float:
         more interesting than full stops, because they vary more between
         writers.
     """
-    # TODO: replace this
-    return 0.0
+    count = len(re.findall(r"[,;:!?—–-]", text))
+    token_count = len(words(text))
+    return count / token_count if token_count else 0.0
 
 
 # ── Combining them ───────────────────────────────────────────────────────────
@@ -122,8 +126,19 @@ def style_signal(text: str) -> float:
     you trust it. Plain and ordinary, not formal: formal prose reads as *human*
     to signal one, and it is plain writing that gets accused.
     """
-    # TODO: replace this
-    return 0.5
+    tokens = words(text)
+    if not tokens:
+        return 0.5
+
+    def clamp(value: float) -> float:
+        return min(max(value, 0.0), 1.0)
+
+    # A single sentence gives no evidence about sentence variation.
+    spread_ai = 0.5 if len(sentences(text)) < 2 else 1 - clamp(sentence_length_spread(text) / 0.55)
+    # Vocabulary and punctuation ratios are unstable on tiny samples.
+    vocab_ai = 0.5 if len(tokens) < 30 else 1 - clamp((type_token_ratio(text) - 0.45) / 0.45)
+    punctuation_ai = 0.5 if len(tokens) < 30 else 1 - clamp(punctuation_density(text) / 0.18)
+    return round(0.60 * spread_ai + 0.15 * vocab_ai + 0.25 * punctuation_ai, 4)
 
 
 if __name__ == "__main__":
@@ -139,4 +154,3 @@ if __name__ == "__main__":
     print(f"type_token_ratio         {type_token_ratio(text)}")
     print(f"punctuation_density      {punctuation_density(text)}")
     print(f"style_signal             {style_signal(text)}   (higher = more likely AI)")
-    print("\nAll zeros? These are stubs — Milestone 4 is where you build them.")

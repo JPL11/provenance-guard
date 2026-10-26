@@ -45,6 +45,11 @@ SAMPLES = {
 
 if __name__ == "__main__":
     import detector
+    import scoring
+    import stylometry
 
     for name, passage in SAMPLES.items():
-        print(f"{name}: {detector.model_signal(passage):.4f}")
+        model_score = detector.model_signal(passage)
+        style_score = stylometry.style_signal(passage)
+        combined = scoring.combine_signals(model_score, style_score)
+        print(f"{name:14} model={model_score:.4f} style={style_score:.4f} combined={combined:.4f}")

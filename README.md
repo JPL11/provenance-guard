@@ -54,18 +54,24 @@
 ### Signal one — the model signal
 
 **What it measures:**
+`detector.py::model_signal` converts GPT-2 perplexity into an AI-like score. Low perplexity means the local model found the text predictable.
 
 **Why that might differ between human and AI writing:**
+Generated text often favors likely next words, so ordinary model output can be easier for another model to predict.
 
 **What it can't see:**
+Predictability is not authorship. Plain human writing can score AI-like; unusual or edited AI text can score human-like. It cannot see a writer's process or evidence of authorship.
 
 ### Signal two — the style signal
 
 **What it measures:**
+`stylometry.py::style_signal` uses sentence length variation, unique words divided by words, and marks such as commas, semicolons, questions, and dashes per word. Low variation and low punctuation density raise its AI-like score.
 
 **Why that might differ between human and AI writing:**
+Generic generated prose often has more even sentence lengths and repeated forms. The style score weights sentence spread 0.60, vocabulary ratio 0.15, and punctuation density 0.25 after scaling them to 0–1.
 
 **What it can't see:**
+It has no idea what the sentences mean or who wrote them. A person can write evenly, and a few edits to punctuation or sentence breaks can shift the score without changing authorship. Vocabulary ratio also varies with text length.
 
 ### The combining rule
 
@@ -82,6 +88,16 @@
      somewhere else, say where. -->
 
 **A case where my two signals split, and what my rule does with it:**
+For the AI-drafted calibration paragraph, the model score was `0.8070` while style was `0.3847`. The gap was `0.4223`, just below the `0.45` disagreement guard; the weighted result was `0.7014`, barely in the AI band. This is a fragile high-confidence result, so the label must still say the assessment can be wrong. A gap of `0.45` or more would force `unsure`.
+
+| Calibration passage | Model | Style | Combined |
+|---|---:|---:|---:|
+| clear AI draft | 0.8070 | 0.3847 | 0.7014 |
+| course prose | 0.2282 | 0.2281 | 0.2282 |
+| formal course prose | 0.0745 | 0.3377 | 0.1403 |
+| lightly edited AI draft | 0.4840 | 0.2143 | 0.4166 |
+
+The fixed passages are in `calibration_samples.py`. This small set demonstrates a score spread, not accuracy on a population.
 
 
 
