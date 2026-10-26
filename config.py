@@ -45,6 +45,8 @@ DETECTOR_MODEL = os.getenv("AI201_DETECTOR_MODEL", "gpt2")
 # Longer text gives a steadier reading but takes longer. 400 tokens is roughly
 # 300 words, which is enough for the signal to mean something.
 DETECTOR_MAX_TOKENS = 400
+MAX_TEXT_CHARS = 10_000
+MAX_REASONING_CHARS = 2_000
 
 
 # ─── Scoring (Milestone 4) ───────────────────────────────────────────────────
