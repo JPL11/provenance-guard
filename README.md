@@ -72,9 +72,9 @@
 <!-- Write the rule in words, then give the numbers. What happens when the two
      signals disagree? -->
 
-**The rule:**
+**The rule:** Use a weighted average of the model and style scores. If their scores differ by at least 0.45, keep the combined result in the unsure band so a strong disagreement cannot create a high-confidence claim.
 
-**The numbers:**
+**The numbers:** `0.75 × model_score + 0.25 × style_score`; disagreement at `|model_score - style_score| >= 0.45`; human scores below `0.32`, AI scores at or above `0.70`, and scores between those bounds are unsure. The disagreement cap is `0.69` for an AI-leaning average and the floor is `0.32` for a human-leaning average.
 
 **Where it lives:** `scoring.py::combine_signals`
 
