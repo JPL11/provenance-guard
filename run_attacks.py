@@ -478,6 +478,7 @@ def main():
             "id": attack["id"],
             "family": attack["family"],
             "targets": attack["targets"],
+            "input": attack.get("raw", attack.get("body")),
             "status": status,
             "content_id": payload.get("content_id"),
             # `body` is whatever the attack file held — a malformed-request

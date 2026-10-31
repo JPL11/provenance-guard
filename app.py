@@ -38,15 +38,8 @@ app = Flask(__name__)
 
 
 # ── Rate limiting — UNIT 8 ────────────────────────────────────────────────────
-# Off until you turn it on. In unit 8, Milestone 1:
-#
-#   1. Set RATE_LIMITING_ENABLED = True in config.py (or AI201_RATE_LIMITS=1)
-#   2. Choose your numbers there
-#   3. Uncomment the @limiter.limit(...) line on /submit below
-#
-# The order doesn't matter. While limiting is off, that decorator is a no-op
-# that quietly does nothing, so uncommenting it early costs you nothing — but
-# it also means no 429 until you've done step 1.
+# Enabled for this unit. Limits are configured in config.py and applied to
+# /submit. Set AI201_RATE_LIMITS=0 only when intentionally disabling limiting.
 #
 # The storage backend is preconfigured, which stops Flask-Limiter printing a
 # warning on every start. In-memory is right for one laptop and wrong for
@@ -106,8 +99,11 @@ if config.RATE_LIMITING_ENABLED:
         payload = request.get_json(silent=True)
         if not isinstance(payload, dict):
             payload = {}
+        creator_id = payload.get("creator_id", "unknown")
+        if not isinstance(creator_id, str) or not creator_id.strip():
+            creator_id = "unknown"
         audit.log_rejection(
-            creator_id=payload.get("creator_id", "unknown"),
+            creator_id=creator_id.strip(),
             reason="rate_limited",
             limit=str(exc.description),
         )
@@ -154,26 +150,43 @@ def health():
 # ── YOU BUILD THIS ────────────────────────────────────────────────────────────
 
 @app.post("/submit")
-# @limiter.limit(f"{config.RATE_LIMIT_PER_MINUTE}/minute;{config.RATE_LIMIT_PER_DAY}/day")
+@limiter.limit(f"{config.RATE_LIMIT_PER_MINUTE}/minute;{config.RATE_LIMIT_PER_DAY}/day")
 def submit():
     """Validate a submission, score its text, and append the decision."""
     payload = request.get_json(silent=True)
     if not isinstance(payload, dict):
+        audit.log_rejection(creator_id="unknown", reason="invalid_json")
         return jsonify({"error": "invalid_json", "message": "Send a JSON object."}), 400
     text = payload.get("text")
     creator_id = payload.get("creator_id")
+    log_creator = (
+        creator_id.strip()
+        if isinstance(creator_id, str) and creator_id.strip()
+        else "unknown"
+    )
     if not isinstance(text, str) or not text.strip():
+        audit.log_rejection(creator_id=log_creator, reason="invalid_text")
         return jsonify({"error": "invalid_text", "message": "Text must be a nonempty string."}), 400
     if len(text) > config.MAX_TEXT_CHARS:
+        audit.log_rejection(
+            creator_id=log_creator, reason="text_too_long", characters=len(text)
+        )
         return jsonify({"error": "text_too_long", "message": "Text must be at most 10,000 characters."}), 413
     if not isinstance(creator_id, str) or not creator_id.strip():
+        audit.log_rejection(creator_id="unknown", reason="invalid_creator_id")
         return jsonify({"error": "invalid_creator_id", "message": "creator_id must be a nonempty string."}), 400
 
     try:
         model_score = detector.model_signal(text)
     except ValueError as exc:
+        audit.log_rejection(
+            creator_id=log_creator, reason="text_too_short", detail=str(exc)
+        )
         return jsonify({"error": "text_too_short", "message": str(exc)}), 400
     except detector.DetectorUnavailable as exc:
+        audit.log_rejection(
+            creator_id=log_creator, reason="detector_unavailable", detail=str(exc)
+        )
         return jsonify({"error": "detector_unavailable", "message": str(exc)}), 503
 
     content_id = str(uuid.uuid4())

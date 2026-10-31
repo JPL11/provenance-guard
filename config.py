@@ -75,7 +75,7 @@ SIGNAL_DISAGREEMENT = 0.45
 # that decide who pays for it.
 
 HUMAN_THRESHOLD = 0.32
-AI_THRESHOLD = 0.70
+AI_THRESHOLD = 0.78
 
 # ⚠️ One thing that catches people out in Milestone 5. A weighted average can
 # only land between its two inputs — so while `style_signal` is still the stub
@@ -89,13 +89,13 @@ AI_THRESHOLD = 0.70
 
 
 # ─── Rate limiting (UNIT 8) ──────────────────────────────────────────────────
-# Off in unit 7. You turn it on and choose the numbers in unit 8, Milestone 1.
+# Enabled for unit 8 with the limits chosen below.
 #
 # Think about two people: a real writer submitting their own work a few times
 # an hour, and a script sending a thousand variations to map your thresholds.
 # Your README has to say why your numbers and not others.
 
-RATE_LIMITING_ENABLED = os.getenv("AI201_RATE_LIMITS", "0") == "1"
+RATE_LIMITING_ENABLED = os.getenv("AI201_RATE_LIMITS", "1") == "1"
 
 RATE_LIMIT_PER_MINUTE = 10
 RATE_LIMIT_PER_DAY = 200

@@ -52,6 +52,12 @@ def bodies_for(scenario):
     """
     if scenario.get("bodies"):
         return list(scenario["bodies"])
+    if scenario.get("groups"):
+        return [
+            {"text": text, "creator_id": f"eval_{scenario['name'][:12]}_{group}_{i}"}
+            for group, texts in scenario["groups"].items()
+            for i, text in enumerate(texts, 1)
+        ]
     return [
         {"text": text, "creator_id": f"eval_{scenario['name'][:12]}_{i}"}
         for i, text in enumerate(scenario["texts"], 1)
@@ -113,6 +119,38 @@ def main():
         trials = []
         for trial in range(1, args.trials + 1):
             results = []
+            if scenario.get("appeal_texts"):
+                for i, text in enumerate(scenario["appeal_texts"], 1):
+                    creator_id = f"eval_appeal_{trial}_{i}"
+                    try:
+                        submission = requests.post(
+                            f"{args.url}/submit",
+                            json={"text": text, "creator_id": creator_id},
+                            timeout=args.timeout,
+                        )
+                        decision = submission.json()
+                        appeal = requests.post(
+                            f"{args.url}/appeal",
+                            json={"content_id": decision.get("content_id"),
+                                  "reasoning": "Evaluation of appeal recording."},
+                            timeout=args.timeout,
+                        )
+                        log = requests.get(f"{args.url}/log?limit=500", timeout=5).json()
+                        matches = [entry for entry in log.get("entries", [])
+                                   if entry.get("content_id") == decision.get("content_id")]
+                        results.append({
+                            "submission_status": submission.status_code,
+                            "appeal_status": appeal.status_code,
+                            "status": appeal.json().get("status"),
+                            "content_id": decision.get("content_id"),
+                            "appeal_events": sum(e.get("event") == "appeal" for e in matches),
+                            "original_decision_retained": any(e.get("status") == "decided" for e in matches),
+                        })
+                    except Exception as exc:  # noqa: BLE001
+                        results.append({"status": None, "error": f"{type(exc).__name__}: {exc}"})
+                trials.append(results)
+                print(f"  trial {trial}: {sum(r.get('status') == 'under_review' for r in results)}/{len(results)} appeals under review")
+                continue
             for i, body in enumerate(bodies_for(scenario), 1):
                 preview = describe(body)
                 try:
@@ -121,6 +159,7 @@ def main():
                     payload = response.json() if response.content else {}
                     results.append({
                         "status": response.status_code,
+                        "creator_id": body.get("creator_id"),
                         "guess": payload.get("guess"),
                         "confidence": payload.get("confidence"),
                         "model_score": payload.get("model_score"),
